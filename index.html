@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Navigasyon – Riva → Hüseyinli</title>
+<title>Navigasyon Sim</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,53 +12,44 @@
 :root{
   --bg:#0b0e14; --panel:#11151d; --ink:#e7e9ee; --muted:#a7b0bd;
   --accent:#3b82f6; --warn:#fbbf24; --danger:#e11d48; --border:#1f2330;
-  --top:#0b5bbf; --top-border:#094aa0;
+  --top:#1e5bcc; --top-border:#174aa8;
 }
-html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
-  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial}
 #map{position:absolute;inset:0}
 .leaflet-container{background:#0b0e14}
 
-/* Üst (mavi) bilgi şeridi */
+/* Üst mavi kart */
 .topcard{
-  position:fixed; left:12px; right:12px;
-  top:calc(env(safe-area-inset-top,0px) + 10px);
-  background:var(--top); color:#fff; z-index:1100;
-  border-radius:16px; border:1px solid var(--top-border);
-  padding:12px 14px; display:flex; align-items:center; gap:12px;
-  box-shadow:0 10px 28px rgba(0,0,0,.35)
+  position:fixed; inset:12px 12px auto 12px; height:56px;
+  display:flex; align-items:center; gap:12px; padding:0 14px;
+  background:var(--top); color:#fff; border:1px solid var(--top-border);
+  border-radius:10px; box-shadow:0 6px 16px rgba(0,0,0,.35); z-index:1000
 }
-.topcard .big{font-size:18px;font-weight:800}
-.topcard small{opacity:.95}
-.topcard .right{margin-left:auto;display:flex;gap:8px;align-items:center}
-.pill{padding:4px 10px;border-radius:999px;background:#ffffff22;border:1px solid #ffffff33;font-weight:700}
+.topcard .arrow{font-size:20px}
+.topcard .title{font-weight:800;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topcard .sub{opacity:.95;font-size:12px}
+.topcard .right{margin-left:auto;display:flex;align-items:center;gap:10px}
 
-/* Alt bar */
+/* Alt siyah bar */
 .bottombar{
-  position:fixed; left:12px; right:12px;
-  bottom:calc(env(safe-area-inset-bottom,0px) + 10px);
-  background:var(--panel); border:1px solid var(--border); border-radius:16px;
-  padding:10px 14px; display:flex; align-items:center; justify-content:space-between;
-  box-shadow:0 10px 28px rgba(0,0,0,.35); z-index:1100
+  position:fixed; left:0; right:0; bottom:0; height:64px;
+  background:#0b0e14; border-top:1px solid #1e2230; color:#fff; z-index:1000;
+  display:flex; align-items:center; justify-content:space-between; padding:0 16px
 }
-.bottombar .mins{color:var(--warn); font-weight:800; font-size:20px}
-.bottombar .meta{color:var(--muted); font-size:14px}
-.bottombar .exit{background:var(--danger); color:#fff; border:none; border-radius:10px;
-  padding:10px 16px; font-weight:800}
+.bottombar .mins{color:#ffd24a; font-weight:800; font-size:18px}
+.bottombar .meta{color:var(--muted); font-size:13px}
+.bottombar .exit{background:#d81d4a; color:#fff; border:none; border-radius:10px; padding:10px 16px; font-weight:800}
 
-/* Sol araç çubuğu (üst kartla çakışmasın diye offset verildi) */
-.rail{
-  position:fixed; left:12px;
-  top:calc(env(safe-area-inset-top,0px) + 86px);  /* üst kartın altına */
-  display:flex; flex-direction:column; gap:10px; z-index:1050;
+/* Sağdaki yuvarlak butonlar */
+.fabcol{
+  position:fixed; right:16px; top:110px; display:flex; flex-direction:column; gap:12px; z-index:1000;
 }
-.btn{
-  width:48px;height:48px;border-radius:12px;display:grid;place-items:center;
-  background:#12151c;border:1px solid var(--border);color:#fff;
-  box-shadow:0 8px 22px rgba(0,0,0,.35); cursor:pointer
+.fab{
+  width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:#12151c;color:#fff;
+  border:1px solid var(--border); box-shadow:0 8px 22px rgba(0,0,0,.35); cursor:pointer
 }
-.btn.primary{ background:var(--accent); border-color:var(--accent) }
-.btn svg{width:24px;height:24px}
+.fab.primary{ background:var(--accent); border-color:var(--accent) }
+.fab svg{width:26px;height:26px}
 
 /* Araç oku */
 .veh-wrap{width:26px;height:26px;border-radius:50%;background:#ffffffd0;display:grid;place-items:center}
@@ -70,14 +61,17 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
 
 <!-- ÜST KART -->
 <div class="topcard">
-  <div id="turnIcon" style="font-size:22px">⬆️</div>
-  <div>
-    <div class="big" id="topMain">Rota hazırlanıyor…</div>
-    <small id="topSub">Sokak adı</small>
+  <div class="arrow" id="turnIcon">↱</div>
+  <div style="min-width:0">
+    <div class="title" id="topMain">Rota hazırlanıyor…</div>
+    <div class="sub" id="topSub">Sokak adı</div>
   </div>
   <div class="right">
-    <div class="pill" id="pillDist">— km</div>
-    <div class="pill" id="pillEta">—:—</div>
+    <button class="fab" id="btnEdit" title="Koordinat Yapıştır">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>
+      </svg>
+    </button>
   </div>
 </div>
 
@@ -90,69 +84,66 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
   <button class="exit" id="btnExit">Çıkış</button>
 </div>
 
-<!-- SOL ARAÇ ÇUBUĞU -->
-<div class="rail">
-  <button class="btn" id="btnStartPick" title="Başlangıç Seç">
+<!-- SAĞ FAB’lar -->
+<div class="fabcol">
+  <button class="fab" id="btnLocate" title="Konum">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 21s-7-6.5-7-11a7 7 0 1 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="3"/>
+    </svg>
+  </button>
+  <button class="fab" id="btnStartPick" title="Başlangıç Seç">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M5 9l7-7 7 7"/></svg>
   </button>
-  <button class="btn" id="btnDestPick" title="Varış Seç">
+  <button class="fab" id="btnDestPick" title="Varış Seç">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V2M5 15l7 7 7-7"/></svg>
   </button>
-  <button class="btn" id="btnSwap" title="Yer Değiştir">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h11l-3-3M20 17H9l3 3"/></svg>
+  <button class="fab" id="btnRoute" title="Rota">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M4 19c0-2.5 2-4 4.5-4H15a3 3 0 0 0 0-6H9.5A3.5 3.5 0 0 1 6 5"/>
+      <circle cx="6" cy="5" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="4" cy="19" r="2"/>
+    </svg>
   </button>
-  <button class="btn primary" id="btnRoute" title="Rota Çiz">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19c0-2.5 2-4 4.5-4H15a3 3 0 0 0 0-6H9.5A3.5 3.5 0 0 1 6 5"/><circle cx="6" cy="5" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="4" cy="19" r="2"/></svg>
-  </button>
-  <button class="btn" id="btnGo" title="Simülasyonu Başlat">
+  <button class="fab primary" id="btnStart" title="Başlat">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
   </button>
-  <button class="btn" id="btnPause" title="Duraklat">
+  <button class="fab" id="btnPause" title="Duraklat">
     <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-  </button>
-  <button class="btn" id="btnPaste" title="Koordinat Yapıştır">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
-  </button>
-  <button class="btn" id="btnClear" title="Temizle">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6v12m4-12v12m4-12v12"/></svg>
   </button>
 </div>
 
 <script>
-/* ==== Varsayılan nokta çifti (ekrandaki hattın yaklaşıkları) ==== */
-const DEFAULT_START = [41.1789, 29.2178]; // Riva yolu üstü
-const DEFAULT_DEST  = [41.1149, 29.2710]; // Hüseyinli merkez civarı
+/* ======= BURAYI İSTEDİĞİN GİBİ SABİTLE =======
+   Varsayılanlar: Anadolufeneri O-7 bağlantısı → Ali Bahadır Cd.
+   İki nokta yakın bile olsa rotayı OSRM çizecek.
+*/
+const DEFAULT_START = [41.1859, 29.2159]; // O-7 kuzey bağlantı rampası (Anadolufeneri tarafı yaklaşık)
+const DEFAULT_DEST  = [41.1719, 29.2248]; // Ali Bahadır Cd. (Şana Garden kavşağı civarı)
 
-/* ====== Durum ====== */
-let startMarker, destMarker, routeLine, moving;
-let route=[], steps=[], cumDist=[];
-let totalDist=0, totalDur=0;
-let segI=0, segT=0, animId=null;
-let currentStepIdx=0, lastTurnBucket=null;
-let simSpeed=4;
+/* ===== Durum ===== */
+let startMarker,destMarker,routeLine,moving;
+let route=[],steps=[],cumDist=[];
+let totalDist=0,totalDur=0;
+let segI=0,segT=0,animId=null;
+let simSpeed=4, currentStepIdx=0, lastTurnBucket=null;
 
 const $=s=>document.querySelector(s);
 const turnIcon=$('#turnIcon'), topMain=$('#topMain'), topSub=$('#topSub');
 const etaMin=$('#etaMin'), etaMeta=$('#etaMeta');
-const pillDist=$('#pillDist'), pillEta=$('#pillEta');
 
-const fmtDist = m => m<950?`${Math.round(m)} m`:`${(m/1000).toFixed(1).replace('.',',')} km`;
-const fmtMin  = s => `${Math.ceil(s/60)} dk.`;
-const fmtETA  = s => { const d=new Date(Date.now()+s*1000); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
-const trMan   = m => ({right:'sağa dön',left:'sola dön','slight right':'hafif sağ','slight left':'hafif sol','sharp right':'keskin sağ','sharp left':'keskin sol',straight:'düz devam et',uturn:'geri dön'}[m]||'devam et');
-const emMan   = m => ({right:'↱',left:'↰','slight right':'↗','slight left':'↖','sharp right':'⤴','sharp left':'⤵',straight:'⬆️',uturn:'⟲'}[m]||'⬆️');
+const fmtDist=m=>m<950?`${Math.round(m)} m`:`${(m/1000).toFixed(1).replace('.',',')} km`;
+const fmtMin =s=>`${Math.ceil(s/60)} dk.`;
+const fmtETA =s=>{const d=new Date(Date.now()+s*1000);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
+const trMan  =m=>({right:'sağa dön',left:'sola dön','slight right':'hafif sağ','slight left':'hafif sol','sharp right':'keskin sağ','sharp left':'keskin sol',straight:'düz devam et',uturn:'geri dön'}[m]||'devam et');
+const emMan  =m=>({right:'↱',left:'↰','slight right':'↗','slight left':'↖','sharp right':'⤴','sharp left':'⤵',straight:'⬆️',uturn:'⟲'}[m]||'⬆️');
 
 function bucketMeters(m){ if(m>=100) return Math.max(0, Math.floor(m/100)*100); return Math.max(0, Math.floor(m/10)*10); }
 function monotonicBucket(raw){ const b=bucketMeters(raw); if(lastTurnBucket==null){lastTurnBucket=b;return b;} if(b>lastTurnBucket) return lastTurnBucket; lastTurnBucket=b; return b; }
-
 function bearing(a,b){ const φ1=a.lat*Math.PI/180, φ2=b.lat*Math.PI/180, Δλ=(b.lng-a.lng)*Math.PI/180;
-  const y=Math.sin(Δλ)*cos(φ2), x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-  return (Math.atan2(y,x)*180/Math.PI+360)%360;
-  function cos(v){return Math.cos(v)}
-}
+  const y=Math.sin(Δλ)*Math.cos(φ2), x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360; }
 
-/* ====== Harita ====== */
-const map=L.map('map',{zoomControl:false}).setView(DEFAULT_START, 12.9);
+/* Harita */
+const map=L.map('map',{zoomControl:false}).setView(DEFAULT_START, 14.5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20}).addTo(map);
 L.control.zoom({position:'topright'}).addTo(map);
 
@@ -163,42 +154,33 @@ const vehIcon  = ang => L.divIcon({className:'',html:`<div class="veh-wrap" styl
 startMarker=L.marker(DEFAULT_START,{icon:iconStart,draggable:true}).addTo(map);
 destMarker =L.marker(DEFAULT_DEST ,{icon:iconDest ,draggable:true}).addTo(map);
 
-/* ====== UI Güncellemeleri ====== */
-function updateTop(remainToTurn){
+/* UI güncelle */
+function updateTop(remain){
   if(!steps.length){ turnIcon.textContent='⬆️'; topMain.textContent='Düz devam et'; topSub.textContent=''; return; }
   const s=steps[currentStepIdx]||{}, mod=s.maneuver?.modifier||s.maneuver?.type||'straight';
-  const show=monotonicBucket(remainToTurn);
+  const show=monotonicBucket(remain);
   turnIcon.textContent=emMan(mod);
   topMain.textContent=(show>0?`${show} m sonra `:'')+trMan(mod);
   topSub.textContent=s.name||'';
 }
-function updateBottom(remainM, remainS){
+function updateBottom(remainM,remainS){
   const pretty=bucketMeters(remainM);
   etaMin.textContent=fmtMin(remainS);
   etaMeta.textContent=`${fmtDist(pretty)} · ${fmtETA(remainS)}`;
-  pillDist.textContent=fmtDist(pretty);
-  pillEta.textContent=fmtETA(remainS);
 }
 
-/* ====== Rota ====== */
+/* Rota oluştur */
 async function buildRoute(){
   const A=startMarker.getLatLng(), B=destMarker.getLatLng();
   const url=`https://router.project-osrm.org/route/v1/driving/${A.lng},${A.lat};${B.lng},${B.lat}?overview=full&geometries=geojson&steps=true`;
-  const r=await fetch(url); const j=await r.json(); const R=j.routes?.[0];
-  if(!R){ topMain.textContent='Rota bulunamadı'; return; }
-
+  const r=await fetch(url); const j=await r.json(); const R=j.routes?.[0]; if(!R){ topMain.textContent='Rota yok'; return; }
   totalDist=R.distance; totalDur=R.duration; steps=R.legs[0]?.steps||[];
-  route = R.geometry.coordinates.map(([x,y])=>L.latLng(y,x));
+  route=R.geometry.coordinates.map(([x,y])=>L.latLng(y,x));
   cumDist=[0]; for(let i=1;i<route.length;i++) cumDist[i]=cumDist[i-1]+map.distance(route[i-1],route[i]);
 
   routeLine && map.removeLayer(routeLine);
-  routeLine=L.polyline(route,{color:'#3b82f6',weight:6,opacity:0.95}).addTo(map);
-
-  // Sol araç çubuğu ve üst kart çakışmasın diye ekstra padding
-  map.fitBounds(routeLine.getBounds(),{
-    paddingTopLeft:[120,120],
-    paddingBottomRight:[40,40]
-  });
+  routeLine=L.polyline(route,{color:'#3b82f6',weight:7,opacity:.95}).addTo(map);
+  map.fitBounds(routeLine.getBounds(),{paddingTopLeft:[12,76],paddingBottomRight:[12,84]});
 
   moving && map.removeLayer(moving);
   moving=L.marker(route[0],{icon:vehIcon(0)}).addTo(map);
@@ -207,45 +189,48 @@ async function buildRoute(){
   updateTop(totalDist); updateBottom(totalDist,totalDur);
 }
 
-/* ====== Animasyon ====== */
+/* Simülasyon */
 function frame(){
   if(segI>=route.length-1){ cancelAnimationFrame(animId); animId=null; updateTop(0); updateBottom(0,0); return; }
-  const A=route[segI], B=route[segI+1]; const d=Math.max(1, map.distance(A,B));
-  segT += (simSpeed/75) / d;
-  if(segT>=1){ segI++; segT=0; }
+  const A=route[segI], B=route[segI+1]; const d=Math.max(1,map.distance(A,B));
+  segT += (simSpeed/75)/d; if(segT>=1){ segI++; segT=0; }
   const lat=A.lat+(B.lat-A.lat)*segT, lng=A.lng+(B.lng-A.lng)*segT;
   const pos=L.latLng(lat,lng);
   moving.setLatLng(pos).setIcon(vehIcon(bearing(A,B)));
   map.panTo(pos,{animate:false});
 
   const segStart=cumDist[segI]||0, segEnd=cumDist[segI+1]||segStart;
-  const prog = segStart + (segEnd - segStart)*segT;
-  const remainM = Math.max(0, totalDist - prog);
-  const remainS = totalDist ? totalDur*(remainM/totalDist) : 0;
+  const prog=segStart+(segEnd-segStart)*segT;
+  const remainM=Math.max(0,totalDist-prog);
+  const remainS= totalDist? totalDur*(remainM/totalDist):0;
 
-  const step=steps[currentStepIdx]||{}; 
-  const [mlon,mlat]=step.maneuver?.location||[pos.lng,pos.lat];
-  const tillTurn = map.distance(pos, L.latLng(mlat, mlon));
+  const step=steps[currentStepIdx]||{}; const [mlon,mlat]=step.maneuver?.location||[pos.lng,pos.lat];
+  const tillTurn=map.distance(pos,L.latLng(mlat,mlon));
 
   updateTop(tillTurn);
-  updateBottom(remainM, remainS);
+  updateBottom(remainM,remainS);
 
   if(tillTurn<=8 && currentStepIdx<steps.length-1){ currentStepIdx++; lastTurnBucket=null; }
   animId=requestAnimationFrame(frame);
 }
 
-/* ====== Kontroller ====== */
-$('#btnRoute').onclick=buildRoute;
-$('#btnGo').onclick = ()=>{ if(!animId) animId=requestAnimationFrame(frame); };
-$('#btnPause').onclick=()=>{ if(animId){ cancelAnimationFrame(animId); animId=null; } };
-$('#btnExit').onclick =()=>{ if(animId){ cancelAnimationFrame(animId); animId=null; } routeLine && map.removeLayer(routeLine); };
-
-$('#btnStartPick').onclick=()=> map.once('click', e=> { startMarker.setLatLng(e.latlng); buildRoute(); });
-$('#btnDestPick').onclick =()=> map.once('click', e=> { destMarker.setLatLng(e.latlng); buildRoute(); });
-$('#btnSwap').onclick     =()=>{ const a=startMarker.getLatLng(); const b=destMarker.getLatLng(); startMarker.setLatLng(b); destMarker.setLatLng(a); buildRoute(); };
-$('#btnClear').onclick    =()=>{ if(animId){ cancelAnimationFrame(animId); animId=null; } routeLine && map.removeLayer(routeLine); };
-
-$('#btnPaste').onclick=()=>{
+/* Kontroller */
+document.getElementById('btnRoute').onclick=buildRoute;
+document.getElementById('btnStart').onclick=()=>{ if(!animId) animId=requestAnimationFrame(frame); };
+document.getElementById('btnPause').onclick=()=>{ if(animId){ cancelAnimationFrame(animId); animId=null; } };
+document.getElementById('btnExit').onclick =()=>{ if(animId){ cancelAnimationFrame(animId); animId=null; } routeLine && map.removeLayer(routeLine); };
+document.getElementById('btnStartPick').onclick=()=> map.once('click', e=> { startMarker.setLatLng(e.latlng); buildRoute(); });
+document.getElementById('btnDestPick').onclick =()=> map.once('click', e=> { destMarker.setLatLng(e.latlng); buildRoute(); });
+document.getElementById('btnLocate').onclick=()=>{
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(p=>{
+      startMarker.setLatLng([p.coords.latitude,p.coords.longitude]);
+      map.setView([p.coords.latitude,p.coords.longitude],16);
+    },()=>{}, {enableHighAccuracy:true,timeout:5000});
+  }
+};
+/* Koordinat yapıştır */
+document.getElementById('btnEdit').onclick=()=>{
   const s=prompt('Başlangıç ve varış: "lat1,lng1 ; lat2,lng2"');
   if(!s) return;
   const m=s.split(';').map(x=>x.trim());
@@ -257,8 +242,7 @@ $('#btnPaste').onclick=()=>{
   buildRoute();
 };
 
-/* İlk çizim */
-buildRoute();
+buildRoute(); // açılışta Anadolufeneri → Ali Bahadır Cd.
 </script>
 </body>
 </html>
