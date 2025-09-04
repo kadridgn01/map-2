@@ -1,1 +1,287 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Navigasyon Sim</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+:root{
+  --bg:#0b0e14; --panel:#11151d; --ink:#e7e9ee; --muted:#a7b0bd;
+  --accent:#3b82f6; --warn:#fbbf24; --danger:#e11d48; --border:#1f2330;
+  --top:#0b5bbf; --top-border:#094aa0;
+}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif}
+#map{position:absolute;inset:0}
+.leaflet-container{background:#0b0e14}
+.topcard{
+  position:fixed; top:calc(env(safe-area-inset-top,0px) + 10px); left:12px; right:12px;
+  background:var(--top); color:#fff; z-index:1000; border-radius:16px; border:1px solid var(--top-border);
+  padding:12px 14px; display:flex; align-items:center; gap:12px;
+  box-shadow:0 10px 28px rgba(0,0,0,.35)
+}
+.topcard .big{font-size:18px;font-weight:800}
+.topcard small{opacity:.95}
+.topcard .mic{margin-left:auto; width:38px;height:38px;border-radius:50%;
+  display:grid;place-items:center;background:#ffffff22;border:1px solid #ffffff33}
+.bottombar{
+  position:fixed; bottom:calc(env(safe-area-inset-bottom,0px) + 10px); left:12px; right:12px;
+  background:var(--panel); border:1px solid var(--border); border-radius:16px;
+  padding:10px 14px; display:flex; align-items:center; justify-content:space-between;
+  box-shadow:0 10px 28px rgba(0,0,0,.35); z-index:1000
+}
+.bottombar .mins{color:var(--warn); font-weight:800; font-size:20px}
+.bottombar .meta{color:var(--muted); font-size:14px}
+.bottombar .exit{background:var(--danger); color:#fff; border:none; border-radius:10px;
+  padding:10px 16px; font-weight:800}
+.fabcol{
+  position:fixed;
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+  display:flex; flex-direction:column; gap:12px; z-index:1000;
+}
+.fab{
+  width:60px; height:60px; border-radius:50%; display:grid; place-items:center;
+  background:#12151c; color:#fff; font-size:22px; border:1px solid var(--border);
+  box-shadow:0 8px 22px rgba(0,0,0,.35);
+  position:relative; overflow:hidden; -webkit-tap-highlight-color:transparent;
+}
+.fab.primary{ background:var(--accent); border-color:var(--accent); }
+.fab svg{ width:28px; height:28px; }
+.fab:active{ transform:scale(0.94); box-shadow:0 6px 16px rgba(0,0,0,.45); }
+.fab::after{
+  content:""; position:absolute; inset:0; opacity:0; transform:scale(0.5);
+  background:radial-gradient(circle at var(--x,50%) var(--y,50%), rgba(255,255,255,.25), transparent 40%);
+  transition:opacity .35s, transform .35s; pointer-events:none;
+}
+.fab.rippling::after{ opacity:1; transform:scale(1); }
+.veh-wrap{width:26px;height:26px;border-radius:50%;background:#ffffffd0;display:grid;place-items:center}
+.veh{width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:16px solid var(--accent)}
+.badge{ /* NEW: üst kartta küçük rozet */
+  margin-left:8px; padding:2px 8px; border-radius:999px; background:#ffffff1f; font-size:12px; font-weight:700;
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<!-- ÜST KART -->
+<div class="topcard">
+  <div id="turnIcon" style="font-size:22px">⬆️</div>
+  <div>
+    <div class="big" id="topMain">Rota hazırlanıyor… <span id="kmBadge" class="badge" style="display:none">1 km kaldı</span></div> <!-- NEW -->
+    <small id="topSub">Sokak adı</small>
+  </div>
+  <div class="mic">🎤</div>
+</div>
+
+<!-- ALT BAR -->
+<div class="bottombar">
+  <div>
+    <div class="mins" id="etaMin">— dk.</div>
+    <div class="meta" id="etaMeta">— · —:—</div>
+  </div>
+  <button class="exit" id="btnExit">Çıkış</button>
+</div>
+
+<!-- SAĞ FAB’LAR -->
+<div class="fabcol">
+  <button class="fab" id="btnLocate" aria-label="Konum" title="Konum">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 21s-7-6.5-7-11a7 7 0 1 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="3"/>
+    </svg>
+  </button>
+
+  <button class="fab" id="btnPick" aria-label="Hedef Seç" title="Hedef Seç">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 17V3"/><path d="M7 8l5-5 5 5"/><circle cx="12" cy="19" r="2"/>
+    </svg>
+  </button>
+
+  <button class="fab" id="btnRoute" aria-label="Rota" title="Rota">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M4 19c0-2.5 2-4 4.5-4H15a3 3 0 0 0 0-6H9.5A3.5 3.5 0 0 1 6 5"/>
+      <circle cx="6" cy="5" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="4" cy="19" r="2"/>
+    </svg>
+  </button>
+
+  <button class="fab primary" id="btnStart" aria-label="Başlat" title="Başlat">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+  </button>
+
+  <button class="fab" id="btnPause" aria-label="Duraklat" title="Duraklat">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>
+    </svg>
+  </button>
+
+  <!-- NEW: 1 km Kaldı kısayolu -->
+  <button class="fab" id="btnOneKm" aria-label="1 km Kaldı" title="1 km Kaldı">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M4 12h16"/><path d="M12 4v16"/><circle cx="12" cy="12" r="9"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+let startMarker,destMarker,routeLine,moving;
+let route=[],steps=[],cumDist=[];
+let totalDist=0,totalDur=0;
+let segI=0,segT=0,animId=null;
+let simSpeed=4;
+let currentStepIdx=0;
+let lastTurnBucket=null;
+let forceOneKm=false; // NEW: “1 km kaldı” gösterim bayrağı
+
+const $ = s => document.querySelector(s);
+const turnIcon=$('#turnIcon'), topMain=$('#topMain'), topSub=$('#topSub');
+const etaMin=$('#etaMin'), etaMeta=$('#etaMeta'), kmBadge=$('#kmBadge');
+
+const fmtDist = m => m<950?`${Math.round(m)} m`:`${(m/1000).toFixed(1).replace('.',',')} km`;
+const fmtMin  = s => `${Math.ceil(s/60)} dk.`;
+const fmtETA  = s => { const d=new Date(Date.now()+s*1000); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+const trMan   = m => ({right:'sağa dön',left:'sola dön','slight right':'hafif sağ','slight left':'hafif sol','sharp right':'keskin sağ','sharp left':'keskin sol',straight:'düz devam et',uturn:'geri dön'}[m]||'devam et');
+const emMan   = m => ({right:'↱',left:'↰','slight right':'↗','slight left':'↖','sharp right':'⤴','sharp left':'⤵',straight:'⬆️',uturn:'⟲'}[m]||'⬆️');
+
+function bucketMeters(m){ if(m>=100) return Math.max(0, Math.floor(m/100)*100); return Math.max(0, Math.floor(m/10)*10); }
+function monotonicBucket(raw){ const b=bucketMeters(raw); if(lastTurnBucket==null){lastTurnBucket=b;return b;} if(b>lastTurnBucket) return lastTurnBucket; lastTurnBucket=b; return b; }
+
+function bearing(a,b){ const φ1=a.lat*Math.PI/180, φ2=b.lat*Math.PI/180, Δλ=(b.lng-a.lng)*Math.PI/180;
+  const y=Math.sin(Δλ)*Math.cos(φ2), x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360; }
+
+const map=L.map('map',{zoomControl:false}).setView([41.03678,28.98556],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20}).addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+
+const iconStart=L.divIcon({className:'',html:'<div style="width:18px;height:18px;border-radius:50%;background:#f59e0b;border:2px solid #ffe7bf"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+const iconDest =L.divIcon({className:'',html:'<div style="width:18px;height:18px;border-radius:50%;background:#22c55e;border:2px solid #d8f9e5"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+const vehIcon  = ang => L.divIcon({className:'',html:`<div class="veh-wrap" style="transform:rotate(${ang}deg)"><div class="veh"></div></div>`,iconSize:[26,26],iconAnchor:[13,13]});
+
+startMarker=L.marker([41.03678,28.98556],{icon:iconStart,draggable:true}).addTo(map);
+destMarker =L.marker([41.02566,28.97438],{icon:iconDest ,draggable:true}).addTo(map);
+
+function updateTop(remainToTurn){
+  if(forceOneKm){ // NEW
+    turnIcon.textContent='⬆️';
+    topMain.innerHTML='Varış noktasına 1 km kaldı <span class="badge">1 km kaldı</span>';
+    topSub.textContent='';
+    return;
+  }
+  if(!steps.length){ turnIcon.textContent='⬆️'; topMain.textContent='Düz devam et'; topSub.textContent=''; return; }
+  const s=steps[currentStepIdx]||{}, mod=s.maneuver?.modifier||s.maneuver?.type||'straight';
+  const show=monotonicBucket(remainToTurn);
+  turnIcon.textContent=emMan(mod);
+  topMain.textContent=(show>0?`${show} m sonra `:'')+trMan(mod);
+  topSub.textContent=s.name||'';
+}
+function updateBottom(remainM, remainS){
+  const pretty = bucketMeters(remainM);
+  etaMin.textContent = fmtMin(remainS);
+  etaMeta.textContent= `${fmtDist(pretty)} · ${fmtETA(remainS)}`;
+}
+
+/* NEW: hedefe kalan X metreye atla */
+function seekByRemaining(targetM=1000){
+  if(!route.length || !totalDist) return;
+  const want = Math.max(0, totalDist - targetM);
+  // cumDist, rotanın başından itibaren birikimli mesafe
+  let i=0;
+  while(i<cumDist.length && cumDist[i]<want) i++;
+  segI=Math.max(0, i-1);
+  const segLen = (cumDist[segI+1]??cumDist[segI]) - cumDist[segI];
+  segT = segLen>0 ? (want - cumDist[segI]) / segLen : 0;
+  const A=route[segI], B=route[segI+1]||A;
+  const lat=A.lat+(B.lat-A.lat)*segT, lng=A.lng+(B.lng-A.lng)*segT;
+  moving.setLatLng([lat,lng]).setIcon(vehIcon(bearing(A,B)));
+  map.panTo([lat,lng],{animate:false});
+  // UI’yi “1 km kaldı” moduna al
+  forceOneKm=true;
+  kmBadge.style.display='inline-block';
+  lastTurnBucket=null;
+  const remainM = totalDist - (cumDist[segI] + (segLen*segT));
+  const remainS = totalDur*(remainM/totalDist);
+  updateTop(0);
+  updateBottom(remainM, remainS);
+}
+
+async function buildRoute(){
+  const A=startMarker.getLatLng(), B=destMarker.getLatLng();
+  const url=`https://router.project-osrm.org/route/v1/driving/${A.lng},${A.lat};${B.lng},${B.lat}?overview=full&geometries=geojson&steps=true`;
+  const r=await fetch(url); const j=await r.json(); const R=j.routes?.[0]; if(!R){ topMain.textContent='Rota yok'; return; }
+  totalDist=R.distance; totalDur=R.duration; steps=R.legs[0]?.steps||[];
+  route = R.geometry.coordinates.map(([x,y])=>L.latLng(y,x));
+  cumDist=[0]; for(let i=1;i<route.length;i++) cumDist[i]=cumDist[i-1]+map.distance(route[i-1],route[i]);
+  routeLine && map.removeLayer(routeLine);
+  routeLine=L.polyline(route,{color:'#3b82f6',weight:7,opacity:.95}).addTo(map);
+  map.fitBounds(routeLine.getBounds(),{padding:[70,70]});
+  moving && map.removeLayer(moving);
+  moving=L.marker(route[0],{icon:vehIcon(0)}).addTo(map);
+  segI=0; segT=0; currentStepIdx=0; lastTurnBucket=null; forceOneKm=false; kmBadge.style.display='none';
+  updateTop(totalDist); updateBottom(totalDist,totalDur);
+}
+
+function frame(){
+  if(segI>=route.length-1){ cancelAnimationFrame(animId); animId=null; updateTop(0); updateBottom(0,0); return; }
+  if(forceOneKm){ // NEW: bu modda animasyon durur
+    cancelAnimationFrame(animId); animId=null; return;
+  }
+  const A=route[segI], B=route[segI+1]; const d=Math.max(1, map.distance(A,B));
+  segT += (simSpeed/75) / d;
+  if(segT>=1){ segI++; segT=0; }
+  const lat=A.lat+(B.lat-A.lat)*segT, lng=A.lng+(B.lng-A.lng)*segT;
+  const pos=L.latLng(lat,lng);
+  moving.setLatLng(pos).setIcon(vehIcon(bearing(A,B)));
+  map.panTo(pos,{animate:false});
+  const segStart=cumDist[segI]||0, segEnd=cumDist[segI+1]||segStart;
+  const prog = segStart + (segEnd - segStart)*segT;
+  const remainM = Math.max(0, totalDist - prog);
+  const remainS = totalDist ? totalDur*(remainM/totalDist) : 0;
+  const step=steps[currentStepIdx]||{}; const [mlon,mlat]=step.maneuver?.location||[pos.lng,pos.lat];
+  const tillTurn = map.distance(pos, L.latLng(mlat, mlat?mlat:pos.lat)); // guard
+  updateTop(tillTurn);
+  updateBottom(remainM, remainS);
+  if(tillTurn<=8 && currentStepIdx<steps.length-1){ currentStepIdx++; lastTurnBucket=null; }
+  animId=requestAnimationFrame(frame);
+}
+
+/* küçük ripple */
+function addRipple(btn){
+  btn.addEventListener('click', e=>{
+    const r=btn.getBoundingClientRect();
+    btn.style.setProperty('--x', (e.clientX-r.left)+'px');
+    btn.style.setProperty('--y', (e.clientY-r.top)+'px');
+    btn.classList.add('rippling');
+    setTimeout(()=>btn.classList.remove('rippling'), 180);
+    if(navigator.vibrate) navigator.vibrate(12);
+  });
+}
+document.querySelectorAll('.fab').forEach(addRipple);
+
+/* Kontroller */
+document.getElementById('btnLocate').onclick=()=>{
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(p=>{
+      startMarker.setLatLng([p.coords.latitude, p.coords.longitude]);
+      map.setView([p.coords.latitude, p.coords.longitude], 16);
+    },()=>{}, {enableHighAccuracy:true,timeout:5000});
+  }
+};
+document.getElementById('btnPick').onclick=()=> map.once('click', e=> destMarker.setLatLng(e.latlng));
+document.getElementById('btnRoute').onclick=buildRoute;
+document.getElementById('btnStart').onclick=()=>{ forceOneKm=false; kmBadge.style.display='none'; if(!animId) animId=requestAnimationFrame(frame); };
+document.getElementById('btnPause').onclick=()=>{ if(animId){ cancelAnimationFrame(animId); animId=null; } };
+document.getElementById('btnExit').onclick=()=>{ if(animId){ cancelAnimationFrame(animId); animId=null; } routeLine && map.removeLayer(routeLine); };
+
+/* NEW: 1 km kaldı kısayolu */
+document.getElementById('btnOneKm').onclick=()=>{ if(!route.length) return; seekByRemaining(1000); };
+
+buildRoute(); // varsayılan demo rota
+</script>
+</body>
+</html>
 
