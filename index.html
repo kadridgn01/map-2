@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>Navigasyon Sim</title>
 
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0b0e14" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -20,7 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 
 /* Üst mavi kart */
 .topcard{
-  position:fixed; inset:12px 12px auto 12px; height:56px;
+  position:fixed; left:12px; right:12px; top:12px; height:56px;
   display:flex; align-items:center; gap:12px; padding:0 14px;
   background:var(--top); color:#fff; border:1px solid var(--top-border);
   border-radius:10px; box-shadow:0 6px 16px rgba(0,0,0,.35); z-index:1000
@@ -61,13 +68,18 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 
 <!-- ÜST KART -->
 <div class="topcard">
-  <div class="arrow" id="turnIcon">↱</div>
+  <div class="arrow" id="turnIcon">⬆️</div>
   <div style="min-width:0">
     <div class="title" id="topMain">Rota hazırlanıyor…</div>
     <div class="sub" id="topSub">Sokak adı</div>
   </div>
   <div class="right">
-    <button class="fab" id="btnEdit" title="Koordinat Yapıştır">
+    <button class="fab" id="btnInstall" title="Uygulama olarak yükle" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M6 21h12a2 2 0 0 0 2-2v-6"/>
+      </svg>
+    </button>
+    <button class="fab" id="btnPaste" title="Koordinat Yapıştır">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>
       </svg>
@@ -112,14 +124,20 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 </div>
 
 <script>
-/* ======= BURAYI İSTEDİĞİN GİBİ SABİTLE =======
-   Varsayılanlar: Anadolufeneri O-7 bağlantısı → Ali Bahadır Cd.
-   İki nokta yakın bile olsa rotayı OSRM çizecek.
-*/
-const DEFAULT_START = [41.1859, 29.2159]; // O-7 kuzey bağlantı rampası (Anadolufeneri tarafı yaklaşık)
-const DEFAULT_DEST  = [41.1719, 29.2248]; // Ali Bahadır Cd. (Şana Garden kavşağı civarı)
+/* ====== PWA: SW kaydı ve “Yükle” butonu ====== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+}
+let deferredPrompt; const installBtn=document.getElementById('btnInstall');
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredPrompt=e; installBtn.style.display='grid'; });
+installBtn?.addEventListener('click', async ()=>{ deferredPrompt?.prompt(); await deferredPrompt?.userChoice; deferredPrompt=null; installBtn.style.display='none'; });
+window.addEventListener('appinstalled', ()=> installBtn.style.display='none');
 
-/* ===== Durum ===== */
+/* ====== Navigasyon ayarları ====== */
+/* Varsayılan rota: Anadolufeneri O-7 bağlantısı → Ali Bahadır Cd. */
+const DEFAULT_START=[41.18602,29.21755];
+const DEFAULT_DEST =[41.17195,29.22480];
+
 let startMarker,destMarker,routeLine,moving;
 let route=[],steps=[],cumDist=[];
 let totalDist=0,totalDur=0;
@@ -135,7 +153,6 @@ const fmtMin =s=>`${Math.ceil(s/60)} dk.`;
 const fmtETA =s=>{const d=new Date(Date.now()+s*1000);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
 const trMan  =m=>({right:'sağa dön',left:'sola dön','slight right':'hafif sağ','slight left':'hafif sol','sharp right':'keskin sağ','sharp left':'keskin sol',straight:'düz devam et',uturn:'geri dön'}[m]||'devam et');
 const emMan  =m=>({right:'↱',left:'↰','slight right':'↗','slight left':'↖','sharp right':'⤴','sharp left':'⤵',straight:'⬆️',uturn:'⟲'}[m]||'⬆️');
-
 function bucketMeters(m){ if(m>=100) return Math.max(0, Math.floor(m/100)*100); return Math.max(0, Math.floor(m/10)*10); }
 function monotonicBucket(raw){ const b=bucketMeters(raw); if(lastTurnBucket==null){lastTurnBucket=b;return b;} if(b>lastTurnBucket) return lastTurnBucket; lastTurnBucket=b; return b; }
 function bearing(a,b){ const φ1=a.lat*Math.PI/180, φ2=b.lat*Math.PI/180, Δλ=(b.lng-a.lng)*Math.PI/180;
@@ -204,8 +221,9 @@ function frame(){
   const remainM=Math.max(0,totalDist-prog);
   const remainS= totalDist? totalDur*(remainM/totalDist):0;
 
-  const step=steps[currentStepIdx]||{}; const [mlon,mlat]=step.maneuver?.location||[pos.lng,pos.lat];
-  const tillTurn=map.distance(pos,L.latLng(mlat,mlon));
+  const step=steps[currentStepIdx]||{}; 
+  const loc=step.maneuver?.location; // [lon,lat]
+  const tillTurn = loc ? map.distance(pos, L.latLng(loc[1], loc[0])) : 9999;
 
   updateTop(tillTurn);
   updateBottom(remainM,remainS);
@@ -229,8 +247,8 @@ document.getElementById('btnLocate').onclick=()=>{
     },()=>{}, {enableHighAccuracy:true,timeout:5000});
   }
 };
-/* Koordinat yapıştır */
-document.getElementById('btnEdit').onclick=()=>{
+/* Koordinat yapıştır: "lat1,lng1 ; lat2,lng2" */
+document.getElementById('btnPaste').onclick=()=>{
   const s=prompt('Başlangıç ve varış: "lat1,lng1 ; lat2,lng2"');
   if(!s) return;
   const m=s.split(';').map(x=>x.trim());
@@ -242,7 +260,7 @@ document.getElementById('btnEdit').onclick=()=>{
   buildRoute();
 };
 
-buildRoute(); // açılışta Anadolufeneri → Ali Bahadır Cd.
+buildRoute(); // açılışta varsayılan rota
 </script>
 </body>
 </html>
